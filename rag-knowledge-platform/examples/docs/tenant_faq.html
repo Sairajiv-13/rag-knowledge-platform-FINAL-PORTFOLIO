@@ -1,0 +1,15 @@
+<!doctype html>
+<html><head><title>Tenant FAQ</title><style>body{font:14px sans-serif}</style>
+<script>console.log("this script must not appear in chunks")</script></head>
+<body>
+<h1>Tenant FAQ</h1>
+<h2>Data isolation</h2>
+<p>Every document and chunk belongs to exactly one tenant. Queries are always
+scoped by tenant identifier, so one tenant can never retrieve another
+tenant's chunks.</p>
+<h2>Uploads</h2>
+<p>Uploading the same file twice is detected by a content hash and rejected as
+a duplicate rather than stored again.</p>
+<ul><li>Supported formats: PDF, Markdown, HTML.</li>
+<li>Scanned PDFs without a text layer cannot be ingested.</li></ul>
+</body></html>

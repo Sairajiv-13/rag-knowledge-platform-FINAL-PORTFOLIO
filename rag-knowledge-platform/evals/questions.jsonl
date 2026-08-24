@@ -1,0 +1,38 @@
+{"question": "What order do migrations and container rollout happen in during a deploy?", "expected_file": "deployment.md", "expected_fact": "migrate"}
+{"question": "How do we roll back a bad release?", "expected_file": "deployment.md", "expected_fact": "previous"}
+{"question": "How quickly does revoking a credential take effect?", "expected_file": "authentication.md", "expected_fact": "next request"}
+{"question": "Why can't the token endpoint be used to enumerate client ids?", "expected_file": "authentication.md", "expected_fact": "same error"}
+{"question": "How often are restore drills performed?", "expected_file": "backups.md", "expected_fact": "monthly"}
+{"question": "Why are database dumps treated as sensitively as uploads?", "expected_file": "backups.md", "expected_fact": "document bytes"}
+{"question": "What is the known weakness of the fixed window limiter?", "expected_file": "rate_limits.md", "expected_fact": "twice the limit"}
+{"question": "What happens to rate limiting when Redis is down?", "expected_file": "rate_limits.md", "expected_fact": "fails open"}
+{"question": "What has to happen if we switch to a different embedding model?", "expected_file": "embeddings.md", "expected_fact": "re-embed"}
+{"question": "Why do we keep the raw bytes of uploaded documents?", "expected_file": "embeddings.md", "expected_fact": "re-embed"}
+{"question": "How big are chunks and how much do they overlap?", "expected_file": "chunking.md", "expected_fact": "four hundred"}
+{"question": "What provenance does a citation show for a PDF?", "expected_file": "chunking.md", "expected_fact": "page"}
+{"question": "When is a cost recorded for a model call?", "expected_file": "billing.md", "expected_fact": "prices"}
+{"question": "What does the usage rollup do when some rows have no cost?", "expected_file": "billing.md", "expected_fact": "unknown"}
+{"question": "Where do I look first when ingestion seems stuck?", "expected_file": "incidents.md", "expected_fact": "worker logs"}
+{"question": "Is it safe to re-enqueue a document that already completed?", "expected_file": "incidents.md", "expected_fact": "idempotent"}
+{"question": "How does reciprocal rank fusion combine the two search lists?", "expected_file": "retrieval.md", "expected_fact": "rank"}
+{"question": "What index does dense retrieval use?", "expected_file": "retrieval.md", "expected_fact": "HNSW"}
+{"question": "Why is a cross-encoder more accurate but slower than a bi-encoder?", "expected_file": "reranking.md", "expected_fact": "together"}
+{"question": "Why is reranking off by default?", "expected_file": "reranking.md", "expected_fact": "latency"}
+{"question": "What is the tradeoff between small and large chunks?", "expected_file": "chunking_strategy.md", "expected_fact": "precision"}
+{"question": "Why is a denormalized tenant id stored on chunks?", "expected_file": "tenancy.md", "expected_fact": "join"}
+{"question": "Why was row-level security rejected for tenant isolation?", "expected_file": "tenancy.md", "expected_fact": "pooled"}
+{"question": "Why are metrics labeled by route template not raw path?", "expected_file": "observability.md", "expected_fact": "cardinality"}
+{"question": "What does a request identifier let you do across logs?", "expected_file": "observability.md", "expected_fact": "trace"}
+{"question": "What happens when token prices are not configured?", "expected_file": "costs.md", "expected_fact": "null"}
+{"question": "In what order do streaming events arrive?", "expected_file": "streaming.md", "expected_fact": "citations"}
+{"question": "How is a corrupt unparseable file handled?", "expected_file": "failure_modes.md", "expected_fact": "permanent"}
+{"question": "What happens when ingestion retries are exhausted?", "expected_file": "failure_modes.md", "expected_fact": "marked failed"}
+{"question": "What is the single source of truth for document status?", "expected_file": "failure_modes.md", "expected_fact": "document row"}
+{"question": "In the architecture, what happens to raw bytes so a document can be re-embedded?", "expected_file": "architecture_guide.md", "expected_fact": "retained"}
+{"question": "How does the platform handle citations the model invented?", "expected_file": "architecture_guide.md", "expected_fact": "dropping"}
+{"question": "What two lookups run in parallel during retrieval?", "expected_file": "architecture_guide.md", "expected_fact": "nearest-neighbor"}
+{"question": "Why is only a SHA-256 hash of the client secret stored?", "expected_file": "security_guide.md", "expected_fact": "entropy"}
+{"question": "What is the fixed window rate limiter's boundary weakness?", "expected_file": "security_guide.md", "expected_fact": "twice"}
+{"question": "Why does the liveness probe avoid checking dependencies?", "expected_file": "operations_guide.md", "expected_fact": "restart"}
+{"question": "What order are migrations and containers applied in a deploy?", "expected_file": "operations_guide.md", "expected_fact": "migrate-then-roll"}
+{"question": "How often are restore drills run against a restored copy?", "expected_file": "operations_guide.md", "expected_fact": "monthly"}

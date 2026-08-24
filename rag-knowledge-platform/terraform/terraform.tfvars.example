@@ -1,0 +1,6 @@
+region    = "us-east-1"
+image_tag = "v0.1.0" # tag you pushed to ECR; avoid a mutable "latest" for real deploys
+
+# certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/..."
+# db_multi_az            = true
+# db_deletion_protection = true

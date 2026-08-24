@@ -1,0 +1,85 @@
+{
+  "cells": [
+    {
+      "p50_ms": 63.7,
+      "p95_ms": 69.9,
+      "p99_ms": 72.3,
+      "mean_ms": 63.2,
+      "corpus_chunks": 1000,
+      "concurrency": 1,
+      "requests": 200
+    },
+    {
+      "p50_ms": 443.0,
+      "p95_ms": 491.9,
+      "p99_ms": 552.2,
+      "mean_ms": 438.8,
+      "corpus_chunks": 1000,
+      "concurrency": 8,
+      "requests": 200
+    },
+    {
+      "p50_ms": 1746.2,
+      "p95_ms": 1845.2,
+      "p99_ms": 1867.5,
+      "mean_ms": 1694.8,
+      "corpus_chunks": 1000,
+      "concurrency": 32,
+      "requests": 200
+    },
+    {
+      "p50_ms": 88.9,
+      "p95_ms": 135.6,
+      "p99_ms": 145.2,
+      "mean_ms": 86.6,
+      "corpus_chunks": 10000,
+      "concurrency": 1,
+      "requests": 200
+    },
+    {
+      "p50_ms": 623.7,
+      "p95_ms": 875.7,
+      "p99_ms": 970.7,
+      "mean_ms": 642.9,
+      "corpus_chunks": 10000,
+      "concurrency": 8,
+      "requests": 200
+    },
+    {
+      "p50_ms": 2459.5,
+      "p95_ms": 3180.2,
+      "p99_ms": 3373.9,
+      "mean_ms": 2437.8,
+      "corpus_chunks": 10000,
+      "concurrency": 32,
+      "requests": 200
+    },
+    {
+      "p50_ms": 58.2,
+      "p95_ms": 68.2,
+      "p99_ms": 73.2,
+      "mean_ms": 58.8,
+      "corpus_chunks": 50000,
+      "concurrency": 1,
+      "requests": 200
+    },
+    {
+      "p50_ms": 413.5,
+      "p95_ms": 486.9,
+      "p99_ms": 520.8,
+      "mean_ms": 410.7,
+      "corpus_chunks": 50000,
+      "concurrency": 8,
+      "requests": 200
+    },
+    {
+      "p50_ms": 1723.9,
+      "p95_ms": 1878.6,
+      "p99_ms": 1923.6,
+      "mean_ms": 1682.0,
+      "corpus_chunks": 50000,
+      "concurrency": 32,
+      "requests": 200
+    }
+  ]
+}
