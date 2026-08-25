@@ -10,8 +10,7 @@ Multi-tenant RAG-as-a-service: ingests documents (PDF / Markdown / HTML),
 chunks and embeds them into pgvector, and serves grounded answers **with
 citations** over a REST API.
 
-<!-- After deploying (see RAILWAY-DEPLOY-GUIDE), add your live link here:
-**🔗 Live demo:** https://your-app.up.railway.app/docs -->
+ **🔗 Live demo:** https://rag-knowledge-platform-production.up.railway.app/docs
 
 ![Architecture](architecture-diagram.png)
 
