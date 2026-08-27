@@ -1,6 +1,144 @@
 # rag-knowledge-platform
 
 ![Python](https://img.shields.io/badge/python-3.12-blue)
+![Tests](https://img.shields.io/badge/tests-90%20passing-brightgreen)
+![Coverage](https://img.shields.io/badge/coverage-81%25-brightgreen)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-336791)
+![License](https://img.shields.io/badge/license-MIT-green)
+
+A multi-tenant RAG service. You upload documents, ask questions in plain English, and get answers that quote the exact passages they came from. Every answer shows its sources, and if the model tries to cite something that wasn't retrieved, that citation gets stripped before you see it.
+
+Live API (interactive docs): https://rag-knowledge-platform-production.up.railway.app/docs
+
+**Status:** functionally complete, verified for single-node work up to ~50k chunks. I've tried to be exact about what's actually tested versus what's built but unproven at scale. Verified: 90 tests at 81% line coverage, hybrid retrieval measured against a labeled eval set, retrieval latency measured on disclosed hardware, per-tenant quotas, live ingestion status, and per-session tenant login in the UI. Not validated at scale: the million-user tier described in SCALABILITY.md (no multi-node load test), the AWS Terraform (it passes fmt/validate in CI but I never applied it to a live account), and answer-quality numbers against a real LLM (the harness exists, it needs a live model to mean anything). The full list is in Limitations at the bottom. I'd rather you know the edges than find them.
+
+## Why I built it
+
+Every team eventually rebuilds the same thing: question-answering over their own documents, where the answer has to be traceable to a source. The demo loop is a weekend. The part that takes real work is everything around it. Keeping one tenant's data out of another's results. Ingestion that fails in a way you can recover from. Retrieval whose ranking you can actually explain. Usage metering that reports a real number or no number, never a guessed one. Citations that are checked, not trusted.
+
+This repo is that shape, built end to end, with the limitations written down instead of hidden.
+
+## What's in it
+
+One Docker image runs both the API and the Celery worker. Postgres holds the relational data, the dense vectors (pgvector), and the keyword index (full-text search) in a single store, so there's one system to operate and one place where consistency lives. Providers (LLM, embeddings, reranker) sit behind interfaces you can swap. See `docs/adr/` for the decisions and the alternatives I rejected. There's an architecture diagram in the repo root.
+
+## Quick start
+
+```bash
+docker compose up --build -d
+docker compose run --rm api alembic upgrade head   # migrations (or: make migrate)
+curl -s localhost:8000/healthz    # liveness  -> {"status":"ok"}
+curl -s localhost:8000/readyz     # readiness -> checks postgres + redis
+```
+
+Interactive docs at http://localhost:8000/docs.
+
+## Using the API
+
+Every data-plane call needs a bearer token. Credentials are issued by an operator through the CLI, and the secret is shown exactly once.
+
+```bash
+python -m rag_platform.cli create-tenant --name Acme --slug acme
+python -m rag_platform.cli create-credential --tenant acme --name laptop
+# {"client_id": "rag_ci_...", "client_secret": "rag_cs_..."}
+
+# 1. trade credentials for a 30-minute JWT
+TOK=$(curl -s -X POST localhost:8000/v1/auth/token \
+  -d "grant_type=client_credentials&client_id=$CID&client_secret=$CSEC" | jq -r .access_token)
+
+# 2. upload a document (pdf/md/html). Returns 202 + status=pending; a worker ingests it.
+#    Watch it finish without polling:
+curl -X POST localhost:8000/v1/documents -H "Authorization: Bearer $TOK" -F "file=@guide.md"
+curl -N localhost:8000/v1/documents/<id>/events -H "Authorization: Bearer $TOK"   # SSE status
+
+# 3. ask a question, get a grounded answer with citations (add "stream": true for SSE)
+curl -X POST localhost:8000/v1/answers -H "Authorization: Bearer $TOK" \
+  -H "Content-Type: application/json" -d '{"query":"how are tenants isolated?"}'
+
+# 4. retrieval with a per-source score breakdown
+curl -X POST localhost:8000/v1/search -H "Authorization: Bearer $TOK" \
+  -H "Content-Type: application/json" -d '{"query":"how do I tune recall?","top_n":5}'
+
+# 5. token/cost metering
+curl "localhost:8000/v1/usage?days=30" -H "Authorization: Bearer $TOK"
+```
+
+The SSE stream sends `citations` first (so a UI can render sources while tokens are still arriving), then `delta` events, then a final `done` with usage, model, and cost. Cost is only computed if you set the per-token price env vars. If you don't, usage rows record the token counts and leave cost null rather than inventing a dollar figure.
+
+Operators can also skip HTTP entirely and ingest or search straight from the CLI (`rag_platform.cli ingest` / `search`), which is handy for offline dev and for loading a corpus.
+
+## Retrieval
+
+Retrieval runs dense search (pgvector, HNSW) and keyword search (Postgres full-text) and fuses the two with reciprocal-rank fusion. There's an optional cross-encoder reranker, off by default until the eval harness says the latency is worth it.
+
+I didn't want to assume hybrid was better, so I measured it. On a 19-doc corpus with 38 labeled questions, hybrid ranks the right passage above dense-only and keyword-only at every k I looked at, and the expected fact lands in a retrieved chunk for 35 of 38 questions. Reproduce it with `python evals/run_eval.py`. The in-repo numbers use the deterministic fake embedder, so read the ordering, not the absolute magnitudes. Set `RAG_EMBEDDING_PROVIDER=local` for real semantic scores (pulls bge-small on first run). Details and the chunk-size sweep are in `evals/README.md`.
+
+## Testing
+
+90 tests, 81% line coverage, and the suite is the point. Unit tests cover the fiddly logic: chunker edge cases including pathological unpunctuated input, parser rejection paths, JWT and hashing failure modes, the RRF math, citation filtering, cost math, and storage-quota thresholds. Integration tests run the real app (httpx + lifespan) against a real Postgres that gets recreated and migrated by the actual Alembic migrations every session, with deterministic fake providers and eager Celery so the whole upload -> worker -> completed path runs in-process.
+
+```bash
+make test-unit          # no dependencies
+make test-integration   # needs Postgres (docker compose up db)
+make test-cov           # coverage report
+```
+
+What's covered end to end: auth failure modes and immediate revocation, tenant isolation at both the API and SQL level, duplicate/corrupt/oversized/unsupported uploads, per-tenant storage quota (413), batch upload with per-file failure isolation, SSE event ordering, usage rollups, and the worker's retry-exhaustion contract (a transient failure ends in a FAILED row, never a stuck PROCESSING one). Core paths — answering, retrieval, security, models — sit at 100%. The uncovered remainder is deliberate: operator CLI and the Anthropic/local-model network paths, which need keys or model downloads. Every number here is measured, never aspirational.
+
+The same gates run in CI on every push: ruff, mypy, unit tests, `alembic upgrade` plus `alembic check` for migration/model drift, integration tests against a pgvector service, and a docker build.
+
+## Measured performance
+
+Real numbers, reproduced by `make benchmark` and `python evals/run_eval.py`. Hardware and caveats live in `benchmarks/RESULTS.md` — read them before quoting the numbers, because latency is hardware-dependent and I'd rather you cite mine than assume yours.
+
+Hybrid-search latency excludes the LLM on purpose; it isolates the index path, which is the part that scales with corpus size. HNSW keeps p50 roughly flat as the corpus grows, which is the whole reason for the index. Answer-quality (correctness and faithfulness) has its own harness in `evals/answer_eval.py`, and it needs a real LLM to produce a meaningful score.
+
+## Design decisions
+
+The load-bearing ones, each with full reasoning and rejected alternatives in an ADR:
+
+- **One database for everything.** pgvector + tsvector inside Postgres instead of a separate vector store and search engine. The cost is that `ts_rank_cd` isn't true BM25 and HNSW post-filters the tenant predicate. What I bought is one system to run and transactional consistency. (ADR 0001, 0003)
+- **Shared tables + `tenant_id`, enforced in code.** Not RLS, not a database per tenant. Isolation becomes a discipline, so it's pinned by tests at the API and SQL level. In return I get sane migrations and connection pooling. (ADR 0002)
+- **RRF over score blending.** Reranker is implemented but default-off until the harness proves the latency pays for itself. (ADR 0003)
+- **Client-credentials OAuth2 with per-request revocation checks.** One primary-key read per request buys immediate revocation. (ADR 0004)
+- **Upload bytes live in Postgres (10MB cap), not object storage.** The `documents` row is the single source of truth for job status; there's no Celery result backend. (ADR 0005)
+
+## Security
+
+OAuth2 client credentials, 30-minute HS256 JWTs. Secrets are stored as SHA-256 of 256-bit random strings — KDFs are for low-entropy passwords, not high-entropy machine credentials (ADR 0004). Revocation is immediate because liveness is checked on every request, not just at token issuance. `tenant_id` always comes from the token, never the request body, and a cross-tenant read returns 404 rather than 403, because 403 would confirm the id exists. Unknown client and wrong secret share one code path and one message, so there's no enumeration or timing oracle.
+
+## What I'd do differently
+
+Honest reflections, because after building something you can see the seams:
+
+- **Upload bytes belong in object storage, not Postgres BYTEA.** Keeping payloads in the `documents` row (ADR 0005) kept the stack to one datastore and made re-embedding trivial, which was right at a 10MB cap. At real scale it puts large binaries in the same buffer cache as the hot retrieval path and bloats backups. I'd move raw bytes to S3 and keep a pointer. The empty ECS task role in the Terraform is already the seam for the bucket policy.
+- **Redis broker should be SQS or something durable.** Redis is simple and fast, but a restart drops queued-but-unstarted messages. At-least-once with idempotent processing already tolerates redelivery; a durable queue would delete the message-loss failure mode instead of documenting it.
+- **Keyword search is `ts_rank_cd`, not real BM25.** Staying inside Postgres FTS avoided running a search engine, and hybrid still beats dense in the eval, but there's no corpus-level IDF and the keyword-mode plateau is the price. For a keyword-heavy corpus I'd put a real BM25 engine behind the existing `keyword_search()` seam.
+- **UI sessions are in-memory.** Real per-session tenant isolation, but the store doesn't survive a restart or span replicas. The seam is isolated so Redis-backed or signed stateless cookies is a contained change.
+- **Citations point at a chunk, not a span.** Character offsets would let a UI highlight the exact supporting text and make the faithfulness eval exact instead of substring-based.
+
+## Limitations
+
+- Ingestion status is available by polling `GET /v1/documents/{id}` (it returns an `X-Poll-Interval` hint while non-terminal) or by subscribing to the SSE stream. Outbound webhooks are future work — they need a delivery subsystem (retries, signing, dead-lettering) the SSE stream doesn't.
+- Per-tenant total storage is capped (`RAG_MAX_TENANT_STORAGE_BYTES`, default 500MB), enforced before the row is written. Time-windowed ingestion-rate quotas are future work.
+- No per-credential scopes yet; any tenant credential has full tenant access.
+- Postgres FTS lexes dotted identifiers oddly (`hnsw.ef_search` -> `hnsw.ef` + `search`), so keyword queries for the underscored part alone won't match. Documented, not hidden.
+- Token counts are word-based estimates, not a real tokenizer. Chunk sizing is a budget; the 400-token default stays clear of bge's 512-token cap.
+- PDF parsing is text-layer only (pypdf). Scanned PDFs without OCR are rejected with an actionable error; complex multi-column or table layouts extract imperfectly.
+- Full-text search uses the English config only; other languages tokenize poorly until language handling is added.
+- Tenant filtering happens after the HNSW scan (pgvector post-filter), so recall for very small tenants can degrade at large corpus sizes (ADR 0002).
+- The AWS Terraform is fmt/validate-gated in CI but has never been applied to a live account. Cloud-deploy gaps are itemized in `terraform/README.md`; scale limits and their fixes in `SCALABILITY.md`.
+
+## Stack
+
+Python, FastAPI, PostgreSQL + pgvector, Celery/Redis, Next.js, Docker, Terraform.
+
+## Running the hosted demo
+
+The hosted instance runs the API against a small operator-loaded corpus so the answers endpoint works out of the box. If you deploy your own, run the worker (`./start-worker.sh`) alongside the API so the upload endpoint can process documents. Deploy runbook: `DEPLOYMENT.md`. It runs on trial credit plus an Anthropic key, so it's cheap for a handful of questions; turn it off when you're not demoing.
+# rag-knowledge-platform
+
+![Python](https://img.shields.io/badge/python-3.12-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-async-009688)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-336791)
 ![Tests](https://img.shields.io/badge/tests-90%20passing-brightgreen)
